@@ -17,16 +17,12 @@ class FlippaSpider(scrapy.Spider):
                                 "ai_apps_and_tools,youtube,ios_app,android_app,game,crypto_app,"
                                 "social_media,newsletter,service_and_agency,service,"
                                 "projects_and_concepts,other"),
-                 revenue_generating="T,F",
-                 max_pages=50,  # safety stop max pages
-                 **kwargs):
+                 revenue_generating="T,F"):
         self.keyword = keyword
         self.sale_method = sale_method
         self.status = status
         self.property_type = property_type
         self.revenue_generating = revenue_generating
-        self.max_pages = int(max_pages)
-        super().__init__(**kwargs)
 
     def build_url(self, page):
         params = {
@@ -42,7 +38,6 @@ class FlippaSpider(scrapy.Spider):
         return f"{self.base_domain}/search?{urlencode(params)}"
 
     def start_requests(self):
-        # start from page 1
         yield scrapy.Request(
             url=self.build_url(1),
             headers={"User-Agent": "Mozilla/5.0"},
@@ -51,10 +46,11 @@ class FlippaSpider(scrapy.Spider):
         )
 
     def parse(self, response):
-        page = response.meta.get("page", 1)
+        page = response.meta["page"]
         match = re.search(r"const STATE = ({.*?});\s*const", response.text, re.DOTALL)
+
         if not match:
-            self.logger.warning(f"STATE JSON not found on page {page}")
+            self.logger.info(f"No STATE JSON on page {page} — stopping.")
             return
 
         try:
@@ -62,7 +58,7 @@ class FlippaSpider(scrapy.Spider):
             listings = state_json.get("results", [])
 
             if not listings:
-                self.logger.info(f"No listings found on page {page}. Stopping crawl.")
+                self.logger.info(f"No listings found on page {page} — stopping.")
                 return
 
             for item in listings:
@@ -83,18 +79,14 @@ class FlippaSpider(scrapy.Spider):
                     "source_page_url": response.url,
                 }
 
-            # increment page only if below max_pages
-            if page < self.max_pages:
-                next_page = page + 1
-                self.logger.info(f"Going to next page: {next_page}")
-                yield scrapy.Request(
-                    url=self.build_url(next_page),
-                    headers={"User-Agent": "Mozilla/5.0"},
-                    callback=self.parse,
-                    meta={"page": next_page},
-                )
-            else:
-                self.logger.info(f"Reached max pages limit: {self.max_pages}")
+            next_page = page + 1
+            self.logger.info(f"Proceeding to page {next_page}")
+            yield scrapy.Request(
+                url=self.build_url(next_page),
+                headers={"User-Agent": "Mozilla/5.0"},
+                callback=self.parse,
+                meta={"page": next_page},
+            )
 
         except json.JSONDecodeError as e:
             self.logger.error(f"JSON decode error on page {page}: {e}")
