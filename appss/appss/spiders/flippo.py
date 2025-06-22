@@ -47,21 +47,21 @@ class FlippaSpider(scrapy.Spider):
 
     def parse(self, response):
         page = response.meta["page"]
-        match = re.search(r"const STATE = ({.*?});\s*const", response.text, re.DOTALL)
+        data_card = re.search(r"const STATE = ({.*?});\s*const", response.text, re.DOTALL)
 
-        if not match:
+        if not data_card:
             self.logger.info(f"No STATE JSON on page {page} — stopping.")
             return
 
         try:
-            state_json = json.loads(match.group(1))
-            listings = state_json.get("results", [])
+            state_json = json.loads(data_card.group(1))
+            list_of_data = state_json.get("results", [])
 
-            if not listings:
-                self.logger.info(f"No listings found on page {page} — stopping.")
+            if not list_of_data:
+                self.logger.info(f"No list_of_data found on page {page} — stopping.")
                 return
 
-            for item in listings:
+            for item in list_of_data:
                 relative_url = item.get("listing_url", "")
                 full_url = f"{self.base_domain}{relative_url}" if relative_url else None
 
